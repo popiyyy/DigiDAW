@@ -4,6 +4,10 @@ firmware/.pio/
 *.bin
 *.elf
 *.hex
+./firmware/.vscode/.browse.c_cpp.db*
+./firmware/.vscode/c_cpp_properties.json
+./firmware/.vscode/launch.json
+./firmware/.vscode/ipch
 
 # IDE & Editor
 .vscode/
