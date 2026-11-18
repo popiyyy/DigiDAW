@@ -1,0 +1,56 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: digidaw-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"   # MQTT port standar (ESP32 & Node-RED)
+      - "9001:9001"   # MQTT over WebSockets (Web Digital Twin)
+    volumes:
+      - ./infra/mosquitto/config:/mosquitto/config
+      - ./infra/mosquitto/data:/mosquitto/data
+      - ./infra/mosquitto/log:/mosquitto/log
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: digidaw-influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-digidawadmin123}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-digidaw-org}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-room_telemetry}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN:-digidaw-super-secret-token}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+
+  nodered:
+    image: nodered/node-red:latest
+    container_name: digidaw-nodered
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    depends_on:
+      - mosquitto
+      - influxdb
+    volumes:
+      - nodered_data:/data
+
+  # Web-twin frontend service served directly via lightweight Nginx container
+  web-twin:
+    build:
+      context: ./web-twin
+      dockerfile: Dockerfile
+    container_name: digidaw-web-twin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - mosquitto
+
+volumes:
+  influxdb_data:
+  nodered_data:
