@@ -1,6 +1,3 @@
-// ponytail: MQTT over WebSocket client using standard paho-mqtt / mqtt.js from CDN or global window
-// Ceiling: connects directly to ws:// broker without auth/TLS, upgrade with TLS wss:// and token auth for production
-
 const DEFAULT_CONFIG = {
   host: window.location.hostname || 'localhost',
   port: 9001,
@@ -16,12 +13,11 @@ export class MQTTClient {
     this.listeners = new Set();
     this.isConnected = false;
     this.heartbeatTimer = null;
-    this.heartbeatTimeoutMs = 6000; // Firmware kirim tiap 2.5s; jika >6s tidak ada pesan, ESP dianggap disconnected
+    this.heartbeatTimeoutMs = 6000; 
   }
 
-  /**
-   * Connect to Mosquitto WebSocket broker
-   */
+
+  // Connect to Mosquitto WebSocket broker
   connect() {
     const url = `ws://${this.config.host}:${this.config.port}${this.config.path}`;
     console.log(`[MQTT] Connecting to ${url}...`);

@@ -1,6 +1,3 @@
-// ponytail: direct DOM and Three.js material property updates without React/Vue or state management libraries
-// Ceiling: suitable for single-room twin; upgrade to component/scene-graph state tree if scaling to multi-room
-
 export class StateUpdater {
   constructor(sceneObjects = {}) {
     this.sceneObjects = sceneObjects; // e.g. { roomLight, acMesh, fanMesh, roomWalls }

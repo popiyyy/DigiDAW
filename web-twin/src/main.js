@@ -1,6 +1,3 @@
-// ponytail: pure ES module 3D scene initialization with procedural room fallback if GLTF model is missing
-// Ceiling: procedural geometry handles basic room twin without external asset load latency; upgrade to GLTF loader for high-fidelity CAD/BIM
-
 import { MQTTClient } from './mqttClient.js';
 import { StateUpdater } from './stateUpdater.js';
 import { fetchTelemetryHistory } from './influxApi.js';

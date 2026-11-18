@@ -1,6 +1,3 @@
-// ponytail: native fetch query InfluxDB v2 Flux API directly without heavy @influxdata/influxdb-client sdk
-// Ceiling: Flux query format only, upgrade to client sdk if parameterized queries or batch writing is needed
-
 const INFLUX_CONFIG = {
   url: window.INFLUX_URL || 'http://localhost:8086',
   org: window.INFLUX_ORG || 'digidaw-org',
