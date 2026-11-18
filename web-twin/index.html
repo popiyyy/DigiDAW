@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DigiDAW - 3D Digital Twin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0e1117;
+      color: #f1f2f6;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+    }
+    #scene-container {
+      flex: 1;
+      height: 100%;
+      position: relative;
+    }
+    #dashboard-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 320px;
+      background: rgba(18, 22, 34, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 16px;
+      z-index: 10;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: 4px; color: #fff; }
+    p.subtitle { font-size: 0.75rem; color: #a4b0be; margin-bottom: 14px; }
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .metric-label { font-size: 0.82rem; color: #ced6e0; }
+    .metric-val { font-size: 0.95rem; font-weight: 600; font-family: monospace; }
+    .badge {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: #2f3542;
+      color: #fff;
+      font-weight: 500;
+    }
+    .state-active_cooling { background: #0984e3; color: #fff; }
+    .state-warming_trend { background: #d63031; color: #fff; }
+    .state-cool_stable { background: #00b894; color: #fff; }
+    .state-ambient_stable { background: #636e72; color: #fff; }
+    .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
+    .status-badge.connected { background: #00b894; color: #fff; }
+    .status-badge.not-connected { background: #d63031; color: #fff; }
+    .status-badge.connecting { background: #e17055; color: #fff; }
+    .footer { margin-top: 12px; font-size: 0.7rem; color: #747d8c; display: flex; justify-content: space-between; }
+  </style>
+
+  <!-- Three.js and MQTT.js via CDN for zero-build static serving -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+  <div id="scene-container">
+    <div id="dashboard-overlay">
+      <h1>DigiDAW Digital Twin</h1>
+
+      <div class="metric-row">
+        <span class="metric-label">Suhu Ruangan</span>
+        <span class="metric-val" id="val-temp">-- °C</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Kelembapan</span>
+        <span class="metric-val" id="val-rh">-- %</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Pencahayaan</span>
+        <span class="metric-val" id="val-lux">-- Lux</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Gradien Tren Suhu</span>
+        <span class="metric-val" id="val-trend">-- °C</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Status Termal</span>
+        <span class="badge" id="val-thermal-state">--</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Kondisi Cahaya</span>
+        <span class="badge" id="val-light-state">--</span>
+      </div>
+
+      <div class="footer">
+        <span>ESP: <span id="mqtt-status" class="status-badge not-connected">NOT CONNECTED</span></span>
+        <span id="val-seq">#--</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

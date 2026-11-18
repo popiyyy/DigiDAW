@@ -1,0 +1,12 @@
+{
+  "name": "digidaw-web-twin",
+  "version": "1.0.0",
+  "description": "Digital Twin Web Frontend with Three.js & MQTT/InfluxDB for DigiDAW",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "keywords": ["digital-twin", "threejs", "mqtt", "influxdb", "iot"],
+  "author": "DigiDAW Team",
+  "license": "MIT"
+}
