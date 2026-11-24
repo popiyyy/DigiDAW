@@ -7,18 +7,15 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
-// Inisialisasi objek sensor & jaringan
 DHT dht(DHT_PIN, DHT_TYPE);
 BH1750 lightMeter(BH1750_ADDR);
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-// Ring buffer untuk menyimpan riwayat suhu selama 5 menit
 float tempHistory[TREND_WINDOW_SAMPLES];
 int historyCount = 0;
 int historyIndex = 0;
 
-// Variabel shared antar-task FreeRTOS
 struct SensorPayload {
     float roomTemp;
     float roomRh;
@@ -33,37 +30,44 @@ struct SensorPayload {
 SensorPayload latestData;
 SemaphoreHandle_t dataMutex;
 
-// FUNGSI KONEKSI WI-FI & MQTT
 void connectWiFi() {
     if (WiFi.status() == WL_CONNECTED) return;
-    Serial.print("[WiFi] Menghubungkan ke ");
-    Serial.println(WIFI_SSID);
+
+    Serial.printf("\n[WiFi] Menghubungkan ke SSID: '%s'...\n", WIFI_SSID);
+    
     WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-    while (WiFi.status() != WL_CONNECTED) {
+    int retry = 0;
+    while (WiFi.status() != WL_CONNECTED && retry < 20) {
         vTaskDelay(pdMS_TO_TICKS(500));
         Serial.print(".");
+        retry++;
     }
-    Serial.print("\n[WiFi] Terhubung! IP: ");
-    Serial.println(WiFi.localIP());
-}
 
-void connectMQTT() {
-    while (!mqttClient.connected()) {
-        Serial.print("[MQTT] Menghubungkan ke broker...");
-        if (mqttClient.connect(MQTT_CLIENT_ID)) {
-            Serial.println(" Terhubung!");
-        } else {
-            Serial.print(" Gagal (rc=");
-            Serial.print(mqttClient.state());
-            Serial.println("), coba lagi dalam 3 detik...");
-            vTaskDelay(pdMS_TO_TICKS(3000));
-        }
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.print("\n[WiFi] TERHUBUNG! IP ESP32: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.printf("\n[WiFi] Belum terhubung (Status: %d), mencoba lagi nanti...\n", WiFi.status());
     }
 }
 
-// LOGIKA RING BUFFER & RULE-BASED FUSION
+bool connectMQTT() {                                                                             
+        if (mqttClient.connected()) return true;
+        espClient.setTimeout(2); 
+        Serial.printf("[MQTT] Menghubungkan ke broker (%s:%d)...", MQTT_BROKER, MQTT_PORT);                                           
+        if (mqttClient.connect(MQTT_CLIENT_ID)) {                                                    
+            Serial.println(" Terhubung!");                                                           
+            return true;                                                                             
+        } else {                                                                                     
+            Serial.printf(" Gagal (rc=%d), akan coba lagi nanti.\n", mqttClient.state());            
+            return false;                                                                            
+        }                                                                                            
+}
+
+// RING BUFFER LOGIC & RULE-BASED FUSION
 float updateAndComputeTrend(float currentTemp) {
     float oldestTemp = currentTemp;
 
@@ -97,9 +101,12 @@ String classifyLightState(float lux, bool isValid) {
     return "BRIGHT";
 }
 
-// TASK 1: AKUISISI SENSOR & EDGE PROCESSING (CORE 1)
+// TASK 1: SENSOR ACQUISITION & EDGE PROCESSING
 void sensorTask(void *pvParameters) {
     uint32_t sequenceCounter = 0;
+    Serial.println("[SENSOR] Task sensor dimulai...");
+
+    vTaskDelay(pdMS_TO_TICKS(2000));
 
     for (;;) {
         TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -107,6 +114,12 @@ void sensorTask(void *pvParameters) {
         float rh = dht.readHumidity();
         float temp = dht.readTemperature();
         float lux = lightMeter.readLightLevel();
+
+        if (isnan(temp) || isnan(rh)) {
+            vTaskDelay(pdMS_TO_TICKS(250));
+            rh = dht.readHumidity();
+            temp = dht.readTemperature();
+        }
 
         bool dhtValid = !isnan(temp) && !isnan(rh);
         bool luxValid = (lux >= 0.0f);
@@ -120,7 +133,6 @@ void sensorTask(void *pvParameters) {
         String lState = classifyLightState(lux, luxValid);
         sequenceCounter++;
 
-        // Simpan ke variabel global secara thread-safe
         if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
             latestData.roomTemp     = dhtValid ? round(temp * 100.0f) / 100.0f : -999.0f;
             latestData.roomRh       = dhtValid ? round(rh * 100.0f) / 100.0f : -999.0f;
@@ -134,19 +146,34 @@ void sensorTask(void *pvParameters) {
         }
 
         Serial.printf("[SENSOR #%lu] T=%.2fC | RH=%.1f%% | dT_5m=%.2fC (%s) | Lux=%.1f (%s)\n",
-                      sequenceCounter, temp, rh, trend5m, tState.c_str(), lux, lState.c_str());
+                      sequenceCounter, 
+                      dhtValid ? temp : -999.0f, 
+                      dhtValid ? rh : -999.0f, 
+                      trend5m, tState.c_str(), 
+                      luxValid ? lux : -1.0f, 
+                      lState.c_str());
 
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
     }
 }
 
-// TASK 2: TELEMETRI WI-FI & MQTT PUBLISH (CORE 0)
+// TASK 2: WI-FI TELEMETRY & MQTT PUBLISH
 void mqttTask(void *pvParameters) {
     uint32_t lastPublishedSeq = 0;
 
     for (;;) {
         connectWiFi();
-        connectMQTT();
+
+        if (WiFi.status() != WL_CONNECTED) {
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+        
+        if (!mqttClient.connected()) {                                                           
+            connectMQTT();                                                                       
+            vTaskDelay(pdMS_TO_TICKS(2000));             
+            continue;                                                                            
+        }
         mqttClient.loop();
 
         SensorPayload snapshot;
@@ -187,7 +214,21 @@ void mqttTask(void *pvParameters) {
     }
 }
 
-// MAIN SETUP
+void scanI2CDevices() {
+    Serial.println("[I2C] Memindai bus I2C (SDA=21, SCL=22)...");
+    byte count = 0;
+    for (byte addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            Serial.printf("[I2C] Ditemukan perangkat pada alamat 0x%02X!\n", addr);
+            count++;
+        }
+    }
+    if (count == 0) {
+        Serial.println("[I2C] PERINGATAN: Tidak ada perangkat I2C yang merespons!");
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     delay(500);
@@ -195,19 +236,26 @@ void setup() {
 
     dht.begin();
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-    if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
+    Wire.setClock(100000); 
+    delay(100);
+
+    scanI2CDevices();
+
+    if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23, &Wire)) {
         Serial.println("[INIT] BH1750 siap pada alamat 0x23.");
+    } else if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x5C, &Wire)) {
+        Serial.println("[INIT] BH1750 siap pada alamat 0x5C.");
     } else {
-        Serial.println("[ERROR] BH1750 tidak terdeteksi! Periksa wiring SDA/SCL.");
+        Serial.println("[ERROR] BH1750 tidak merespons perintah konfigurasi I2C!");
     }
 
     mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
     mqttClient.setBufferSize(512);
+    mqttClient.setSocketTimeout(3);
 
     dataMutex = xSemaphoreCreateMutex();
     latestData.seqId = 0;
 
-    // Jalankan Sensor Task di Core 1 dan Network/MQTT Task di Core 0
     xTaskCreatePinnedToCore(sensorTask, "SensorTask", 4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(mqttTask,   "MqttTask",   4096, NULL, 1, NULL, 0);
 }

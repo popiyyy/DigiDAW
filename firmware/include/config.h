@@ -2,10 +2,10 @@
 #define CONFIG_H
 
 // KONFIGURASI JARINGAN WI-FI & MQTT
-#define WIFI_SSID       "NAMA_WIFI_ANDA"
-#define WIFI_PASSWORD   "PASSWORD_WIFI_ANDA"
+#define WIFI_SSID       "far"
+#define WIFI_PASSWORD   "88888888"
 
-#define MQTT_BROKER     "192.168.1.100"   // Ganti dengan IP lokal laptop/server Docker Anda
+#define MQTT_BROKER     "10.204.169.238"
 #define MQTT_PORT       1883
 #define MQTT_CLIENT_ID  "esp32-digidaw-01"
 #define MQTT_TOPIC_PUB  "digidaw/room1/telemetry"
