@@ -1,99 +1,400 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DigiDAW - 3D Digital Twin</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0e1117;
-      color: #f1f2f6;
-      overflow: hidden;
-      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #090c10;
+      color: #c9d1d9;
+      overflow-x: hidden;
+      overflow-y: auto;
+      min-height: 100vh;
       display: flex;
+      flex-direction: column;
     }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090c10; }
+    ::-webkit-scrollbar-thumb { background: #21262d; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #30363d; }
+
+    /* 3D SCENE SECTION */
     #scene-container {
-      flex: 1;
-      height: 100%;
+      width: 100%;
+      height: 75vh;
+      min-height: 520px;
       position: relative;
+      background: #0a0d14;
+      border-bottom: 1px solid #1f242c;
+      overflow: hidden;
     }
+    canvas#three-canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    /* DASHBOARD OVERLAY (LEFT SIDE) */
     #dashboard-overlay {
       position: absolute;
-      top: 16px;
-      left: 16px;
-      width: 320px;
-      background: rgba(18, 22, 34, 0.85);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
+      top: 18px;
+      left: 18px;
+      width: 300px;
+      background: rgba(13, 17, 23, 0.92);
+      border: 1px solid #21262d;
+      border-radius: 8px;
       padding: 16px;
       z-index: 10;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
-    h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: 4px; color: #fff; }
-    p.subtitle { font-size: 0.75rem; color: #a4b0be; margin-bottom: 14px; }
+    h1 { font-size: 1rem; font-weight: 600; color: #f0f6fc; letter-spacing: -0.2px; }
+    p.subtitle { font-size: 0.72rem; color: #8b949e; margin-bottom: 12px; }
     .metric-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 7px 0;
+      border-bottom: 1px solid #161b22;
     }
-    .metric-label { font-size: 0.82rem; color: #ced6e0; }
-    .metric-val { font-size: 0.95rem; font-weight: 600; font-family: monospace; }
+    .metric-label { font-size: 0.78rem; color: #8b949e; }
+    .metric-val { font-size: 0.88rem; font-weight: 500; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; color: #f0f6fc; }
+    
+    /* CHARTS OVERLAY (RIGHT SIDE) */
+    #charts-overlay {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .chart-card {
+      background: rgba(13, 17, 23, 0.92);
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .chart-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .chart-val-badge {
+      font-size: 0.82rem;
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      color: #f0f6fc;
+    }
+
+    .chart-canvas-box {
+      width: 100%;
+      height: 110px;
+      position: relative;
+    }
+
+    /* BADGES (CLEAN, MINIMAL, NO SLOP GLOW) */
     .badge {
-      font-size: 0.75rem;
-      padding: 3px 8px;
-      border-radius: 6px;
-      background: #2f3542;
-      color: #fff;
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
       font-weight: 500;
+      letter-spacing: 0.2px;
+      display: inline-block;
+      background: #161b22;
+      color: #8b949e;
+      border: 1px solid #30363d;
     }
-    .state-active_cooling { background: #0984e3; color: #fff; }
-    .state-warming_trend { background: #d63031; color: #fff; }
-    .state-cool_stable { background: #00b894; color: #fff; }
-    .state-ambient_stable { background: #636e72; color: #fff; }
-    .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
-    .status-badge.connected { background: #00b894; color: #fff; }
-    .status-badge.not-connected { background: #d63031; color: #fff; }
-    .status-badge.connecting { background: #e17055; color: #fff; }
-    .footer { margin-top: 12px; font-size: 0.7rem; color: #747d8c; display: flex; justify-content: space-between; }
+    .state-active_cooling { background: rgba(56, 189, 248, 0.1); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3); }
+    .state-warming_trend { background: rgba(248, 113, 113, 0.1); color: #f87171; border-color: rgba(248, 113, 113, 0.3); }
+    .state-cool_stable { background: rgba(74, 222, 128, 0.1); color: #4ade80; border-color: rgba(74, 222, 128, 0.3); }
+    .state-ambient_stable { background: #161b22; color: #8b949e; border-color: #30363d; }
+    
+    .badge-light-bright { background: rgba(251, 191, 36, 0.1); color: #fbbf24; border-color: rgba(251, 191, 36, 0.3); }
+    .badge-light-dim { background: rgba(251, 146, 60, 0.1); color: #fb923c; border-color: rgba(251, 146, 60, 0.3); }
+    .badge-light-dark { background: #161b22; color: #6e7681; border-color: #30363d; }
+
+    .source-badge {
+      font-size: 0.68rem;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    }
+    .source-mqtt { background: #161b22; color: #3fb950; border: 1px solid #238636; }
+    .source-influx { background: #161b22; color: #58a6ff; border: 1px solid #1f6feb; }
+
+    .status-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+    .status-badge.connected { background: rgba(46, 160, 67, 0.15); color: #3fb950; border: 1px solid rgba(46, 160, 67, 0.4); }
+    .status-badge.not-connected { background: rgba(248, 81, 73, 0.15); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.4); }
+    .status-badge.connecting { background: rgba(210, 153, 34, 0.15); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.4); }
+    .footer { margin-top: 12px; font-size: 0.72rem; color: #6e7681; display: flex; justify-content: space-between; align-items: center; }
+
+    /* SCROLL TO DATABASE BUTTON */
+    .scroll-down-btn {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .scroll-down-btn:hover {
+      background: #21262d;
+      color: #f0f6fc;
+      border-color: #8b949e;
+    }
+    .scroll-down-btn svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+    /* DATABASE SECTION */
+    #database-section {
+      width: 100%;
+      background: #090c10;
+      padding: 24px 20px 40px 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+      flex: 1;
+    }
+
+    .db-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .db-title-group h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #f0f6fc;
+      letter-spacing: -0.2px;
+    }
+    .db-meta {
+      font-size: 0.75rem;
+      color: #6e7681;
+      margin-top: 3px;
+    }
+    .db-meta code {
+      background: #161b22;
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid #21262d;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      color: #8b949e;
+    }
+
+    .db-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .db-stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #161b22;
+      border: 1px solid #21262d;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: #8b949e;
+    }
+    .dot-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #3fb950;
+      display: inline-block;
+    }
+    .dot-indicator.flash {
+      background: #58a6ff;
+    }
+    .dot-indicator.syncing {
+      background: #d29922;
+    }
+
+    .db-select {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      outline: none;
+    }
+    .db-select:focus { border-color: #58a6ff; }
+
+    .db-btn {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .db-btn:hover { background: #30363d; color: #f0f6fc; border-color: #8b949e; }
+    .db-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .db-btn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+    .db-btn.loading svg {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* TABLE */
+    .db-table-wrapper {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      overflow-x: auto;
+      max-height: 480px;
+    }
+
+    .db-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.78rem;
+    }
+
+    .db-table th {
+      position: sticky;
+      top: 0;
+      background: #161b22;
+      color: #8b949e;
+      font-weight: 600;
+      padding: 9px 12px;
+      border-bottom: 1px solid #30363d;
+      z-index: 2;
+      white-space: nowrap;
+    }
+
+    .db-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #161b22;
+      color: #c9d1d9;
+      white-space: nowrap;
+    }
+
+    .db-table tbody tr:hover {
+      background: #161b22;
+    }
+
+    .new-row {
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .font-mono {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      font-size: 0.78rem;
+    }
+    .col-num { color: #484f58; width: 40px; text-align: center; }
+    .col-time { color: #8b949e; }
+    .col-seq { color: #8b949e; }
+    .col-val { color: #f0f6fc; font-weight: 500; }
+    .col-trend { color: #8b949e; }
+
+    .db-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      font-size: 0.7rem;
+      color: #6e7681;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    @media (max-width: 900px) {
+      #scene-container { height: 95vh; }
+      #charts-overlay {
+        position: static;
+        width: 100%;
+        padding: 12px 16px;
+      }
+      #dashboard-overlay {
+        position: static;
+        width: 100%;
+        margin: 12px 16px;
+      }
+    }
   </style>
 
-  <!-- Three.js and MQTT.js via CDN for zero-build static serving -->
+  <!-- Libraries via CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+
+  <!-- TOP: 3D DIGITAL TWIN & REAL-TIME STATUS -->
   <div id="scene-container">
+    <!-- LEFT PANEL: SENSOR METRICS -->
     <div id="dashboard-overlay">
       <h1>DigiDAW Digital Twin</h1>
+      <p class="subtitle">Indoor Climate Monitoring</p>
 
       <div class="metric-row">
-        <span class="metric-label">Suhu Ruangan</span>
+        <span class="metric-label">Room Temperature</span>
         <span class="metric-val" id="val-temp">-- °C</span>
       </div>
       <div class="metric-row">
-        <span class="metric-label">Kelembapan</span>
+        <span class="metric-label">Humidity</span>
         <span class="metric-val" id="val-rh">-- %</span>
       </div>
       <div class="metric-row">
-        <span class="metric-label">Pencahayaan</span>
+        <span class="metric-label">Light Intensity</span>
         <span class="metric-val" id="val-lux">-- Lux</span>
       </div>
       <div class="metric-row">
-        <span class="metric-label">Gradien Tren Suhu</span>
-        <span class="metric-val" id="val-trend">-- °C</span>
+        <span class="metric-label">Temperature Trend</span>
+        <span class="metric-val" id="val-trend">-- °C/5m</span>
       </div>
       <div class="metric-row">
-        <span class="metric-label">Status Termal</span>
+        <span class="metric-label">Thermal State</span>
         <span class="badge" id="val-thermal-state">--</span>
       </div>
       <div class="metric-row">
-        <span class="metric-label">Kondisi Cahaya</span>
+        <span class="metric-label">Light Condition</span>
         <span class="badge" id="val-light-state">--</span>
       </div>
 
@@ -102,7 +403,105 @@
         <span id="val-seq">#--</span>
       </div>
     </div>
+
+    <!-- RIGHT PANEL: REAL-TIME CHARTS -->
+    <div id="charts-overlay">
+      <!-- Temperature Chart Card -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">Room Temperature Trend</span>
+          <span class="chart-val-badge" id="chart-val-temp">-- °C</span>
+        </div>
+        <div class="chart-canvas-box">
+          <canvas id="chart-temp"></canvas>
+        </div>
+      </div>
+
+      <!-- Light Chart Card -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">Light Intensity</span>
+          <span class="chart-val-badge" id="chart-val-light">-- Lux</span>
+        </div>
+        <div class="chart-canvas-box">
+          <canvas id="chart-light"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Jump button to database section below -->
+    <a href="#database-section" class="scroll-down-btn">
+      <span>Telemetry Database</span>
+      <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+    </a>
   </div>
+
+  <!-- BOTTOM: TELEMETRY DATABASE -->
+  <section id="database-section">
+    <div class="db-header">
+      <div class="db-title-group">
+        <h2>Room Telemetry Database</h2>
+        <p class="db-meta">
+          Bucket: <code>room_telemetry</code> &bull; Measurement: <code>room_telemetry</code> &bull; Broker: <code>localhost:9001</code>
+        </p>
+      </div>
+
+      <div class="db-actions">
+        <div class="db-stat-pill">
+          <span class="dot-indicator" id="db-sync-dot"></span>
+          <span id="db-row-count">0 Records</span>
+        </div>
+
+        <select id="db-range-select" class="db-select" aria-label="Select time range">
+          <option value="-15m">Last 15 Minutes</option>
+          <option value="-1h" selected>Last 1 Hour</option>
+          <option value="-6h">Last 6 Hours</option>
+          <option value="-24h">Last 24 Hours</option>
+        </select>
+
+        <button id="db-refresh-btn" class="db-btn" title="Refresh data from InfluxDB">
+          <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Refresh
+        </button>
+
+        <button id="db-export-btn" class="db-btn" title="Export data to CSV file">
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Database Table -->
+    <div class="db-table-wrapper">
+      <table class="db-table">
+        <thead>
+          <tr>
+            <th class="col-num">#</th>
+            <th>Timestamp</th>
+            <th>Sequence</th>
+            <th>Temperature</th>
+            <th>Humidity</th>
+            <th>Light</th>
+            <th>5m Trend</th>
+            <th>Thermal State</th>
+            <th>Light State</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody id="db-table-body">
+          <tr class="empty-row">
+            <td colspan="10" style="text-align: center; padding: 24px; color: #6e7681;">
+              Waiting for telemetry data from InfluxDB or MQTT...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="db-footer">
+      <span id="db-last-updated">Updated: -</span>
+      <span>Auto-sync active via MQTT WebSocket & InfluxDB API</span>
+    </div>
+  </section>
 
   <script type="module" src="./src/main.js"></script>
 </body>
